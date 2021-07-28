@@ -2,7 +2,7 @@
 from __future__ import print_function, division
 import glob
 import torch
-from skimage import io, transform, color
+# from skimage import io, transform, color
 import numpy as np
 import random
 import math
@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 from PIL import Image
+import os
+import cv2
 
 #==========================dataset load==========================
 class RescaleT(object):
@@ -222,47 +224,158 @@ class ToTensorLab(object):
 
 		return {'imidx':torch.from_numpy(imidx), 'image': torch.from_numpy(tmpImg), 'label': torch.from_numpy(tmpLbl)}
 
-class SalObjDataset(Dataset):
-	def __init__(self,img_name_list,lbl_name_list,transform=None):
-		# self.root_dir = root_dir
-		# self.image_name_list = glob.glob(image_dir+'*.png')
-		# self.label_name_list = glob.glob(label_dir+'*.png')
-		self.image_name_list = img_name_list
-		self.label_name_list = lbl_name_list
-		self.transform = transform
+
+def get_image_with_padding_square_normalized(path,target_shape):
+    """
+    takes an images and pads it in center, and returns the padding along each side
+    Algorithm 
+    1. pad to square image
+    2. resize
+    input_image : 
+    target_shape : tuple of the target shape (H,W)
+    returns : padded image, tuple with four numbers (left padding,top,right,down)
+    """
+    # if decode: path = path.decode("utf-8") 
+    input_image = cv2.imread(path,cv2.IMREAD_UNCHANGED)
+    # print("input_image.shape: ", input_image.shape)
+    input_h,input_w = input_image.shape[:2]
+    max_dim = max(input_h,input_w)
+    if max_dim % 2 != 0:
+        max_dim += 1
+    if len(input_image.shape) == 3:
+        channels = 3
+        padded_shape = (max_dim,max_dim,input_image.shape[-1])
+    elif len(input_image.shape) == 2:
+        channels = 1
+        padded_shape = (max_dim,max_dim)
+    else:
+        raise ValueError("Unsupported image dimensions. Expected 2 or 3 but got {0} dims"\
+                        .format(len(len(input_image.shape))))
+    # print("channels: ", channels)
+    padded_image = np.zeros(shape=padded_shape,dtype=input_image.dtype)
+    left_pad = (max_dim - input_w) // 2
+    right_pad = np.ceil((max_dim - input_w) / 2.0)
+    top_pad = (max_dim - input_h) // 2
+    bottom_pad = np.ceil((max_dim - input_h) / 2.0)
+    padded_image[top_pad:input_h+top_pad,left_pad:input_w+left_pad] = input_image
+    img = cv2.resize(padded_image,tuple(target_shape),cv2.INTER_CUBIC)
+    cv2.imwrite('temp/contours_d.png',img) 
+
+    # due to opencv resizing
+    
+    if len(img.shape)==2:
+        img = np.expand_dims(img,axis=0)
+
+    # print("img ..")
+    # print(img.max(), img.min())
+    # print("===========")
+    # print("img...")
+    img = np.asarray(img,np.float32)
+	
+    # print("channels ", channels)
+    for i in range(channels):
+        # print("img.shape", img.shape)
+        min_ = img[i,:,:].min()
+        max_ = img[i,:,:].max()
+        if max_ == 0:
+            continue
+        img[i,:,:] = (img[i,:,:]-min_)/(max_-min_)  
+    # print("img 2..")
+    # print(img.max(), img.min())
+    # print("&&&&&&&&&&&")
+    return img
+
+def get_mask_with_padding_square(path,target_shape):
+    """
+    takes an images and pads it in center, and returns the padding along each side
+    Algorithm 
+    1. pad to square image
+    2. resize
+    input_image : 
+    target_shape : tuple of the target shape (H,W)
+    returns : padded image, tuple with four numbers (left padding,top,right,down)
+    """
+    input_image = cv2.imread(path,cv2.IMREAD_UNCHANGED)
+
+    input_image[input_image >= 5] = 255
+    input_image[input_image < 5] = 0
+    
+    input_h,input_w = input_image.shape[:2]
+    max_dim = max(input_h,input_w)
+    if max_dim % 2 != 0:
+        max_dim += 1
+    if len(input_image.shape) == 3:
+        padded_shape = (max_dim,max_dim,input_image.shape[-1])
+    elif len(input_image.shape) == 2:
+        padded_shape = (max_dim,max_dim)
+    else:
+        raise ValueError("Unsupported image dimensions. Expected 2 or 3 but got {0} dims"\
+                        .format(len(len(input_image.shape))))
+    padded_image = np.zeros(shape=padded_shape,dtype=input_image.dtype)
+    left_pad = (max_dim - input_w) // 2
+    right_pad = np.ceil((max_dim - input_w) / 2.0)
+    top_pad = (max_dim - input_h) // 2
+    bottom_pad = np.ceil((max_dim - input_h) / 2.0)
+    padded_image[top_pad:input_h+top_pad,left_pad:input_w+left_pad] = input_image
+    
+    img = cv2.resize(padded_image,tuple(target_shape),cv2.INTER_CUBIC)
+    img = img.astype(np.float32)
+    img[img < 128] = 0.
+    img[img >= 128] = 1.
+    
+    return np.expand_dims(img, 0)
+
+def load_image(src, x, y):
+    '''
+    load image
+    Arguments:
+        src      -- dataset source / split name
+        x -- name of image
+        y -- name of mask
+
+    Returns:
+        (image, mask)
+    '''
+    images_src = "./"+src+"/"+"images"
+    masks_src = "./"+src+"/"+"masks"
+    
+    x = images_src+"/"+x
+    y = masks_src+"/"+y
+
+    target_shape = (256, 256)
+    x = get_image_with_padding_square_normalized(x, target_shape)
+    y = get_mask_with_padding_square(y, target_shape)
+
+    return x, y
+
+class DatasetPipline(Dataset):
+	def __init__(self, src, split, is_augmented=True):
+		is_augmented = "Augmented" if is_augmented else "Original"
+		self.src = os.path.join(src, "acdc", is_augmented, split)
+		images_src = self.src+"/"+"images"
+		masks_src = self.src+"/"+"masks"
+		self.images = sorted(os.listdir(images_src))
+		self.masks = sorted(os.listdir(masks_src))
 
 	def __len__(self):
-		return len(self.image_name_list)
+		return len(self.images)
 
 	def __getitem__(self,idx):
 
-		# image = Image.open(self.image_name_list[idx])#io.imread(self.image_name_list[idx])
-		# label = Image.open(self.label_name_list[idx])#io.imread(self.label_name_list[idx])
+		x, y = self.images[idx], self.masks[idx]
+		x, y = load_image(self.src, x, y)
 
-		image = io.imread(self.image_name_list[idx])
-		imname = self.image_name_list[idx]
-		imidx = np.array([idx])
+		# print("x, ..")
+		# print(x.max(), x.min())
+		# print("************")
 
-		if(0==len(self.label_name_list)):
-			label_3 = np.zeros(image.shape)
-		else:
-			label_3 = io.imread(self.label_name_list[idx])
+		# x, y = np.expand_dims(x, -1), np.expand_dims(y, -1)
 
-		label = np.zeros(label_3.shape[0:2])
-		if(3==len(label_3.shape)):
-			label = label_3[:,:,0]
-		elif(2==len(label_3.shape)):
-			label = label_3
+		# print(np.shape(x))
 
-		if(3==len(image.shape) and 2==len(label.shape)):
-			label = label[:,:,np.newaxis]
-		elif(2==len(image.shape) and 2==len(label.shape)):
-			image = image[:,:,np.newaxis]
-			label = label[:,:,np.newaxis]
+		return {'image':x, 'label':y}
 
-		sample = {'imidx':imidx, 'image':image, 'label':label}
 
-		if self.transform:
-			sample = self.transform(sample)
+if __name__ == "__main__":
 
-		return sample
+	print(DatasetPipline(src="data", split="Train")[0]["image"])
