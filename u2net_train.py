@@ -48,7 +48,6 @@ model_dir = os.path.join(os.getcwd(), 'saved_models', model_name + os.sep)
 
 epoch_num = 100000
 batch_size_train = 12
-batch_size_val = 1
 train_num = 0
 val_num = 0
  
@@ -74,17 +73,30 @@ elif(model_name=='u2netp'):
 
 # ------- 4. define optimizer --------
 print("---define optimizer...")
-optimizer = optim.Adam(net.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
+optimizer = optim.Adam(net.parameters(), lr=0.000001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
 
 # ------- 5. training process --------
 print("---start training...")
 ite_num = 0
-
+patience = 50
 ite_num4val = 0
 save_frq = 500 # save the model every 2000 iterations
 
-trail_name = input("trail name: ")
+def new():
+    dirs = os.listdir("saved_models/expeiraments/")
+    dirs = sorted([int(i) for i in dirs if i.lower() != "none"])
+    name = str(dirs[-1]+1)
+
+    return name
+ 
+expeirament_name = input("expeirament id: ")
+if expeirament_name.strip() == "":
+    expeirament_name = new()
+    os.system("mkdir saved_models/expeiraments/"+expeirament_name)
+
+print("** expeirament id is "+expeirament_name+" **")
 
 fit(net, epoch_num, train, val, save_frq,
          muti_bce_loss_fusion, ite_num, optimizer,
-         ite_num4val, batch_size_train, train_num, trail_name=trail_name)
+         ite_num4val, batch_size_train, train_num, 
+		 trail_name=expeirament_name, patience=patience)
