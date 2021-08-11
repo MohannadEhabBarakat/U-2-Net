@@ -317,39 +317,71 @@ class RSU4F(nn.Module):#UNet04FRES(nn.Module):
 ##### U^2-Net ####
 class U2NET(nn.Module):
 
-    def __init__(self,in_ch=3,out_ch=1):
+    def __init__(self,in_ch=3,out_ch=1, old=False):
         super(U2NET,self).__init__()
 
-        self.stage1 = RSU7(in_ch,32,64)
+        self.stage1 = RSU7(in_ch,int((32+4)/2), int((64+8)/2))
         self.pool12 = nn.MaxPool2d(2,stride=2,ceil_mode=True)
 
-        self.stage2 = RSU6(64,32,128)
+        self.stage2 = RSU6(int((64+8)/2),int((32+4)/2),int((128+16)/2))
         self.pool23 = nn.MaxPool2d(2,stride=2,ceil_mode=True)
 
-        self.stage3 = RSU5(128,64,256)
+        self.stage3 = RSU5(int((128+16)/2),int((64+8)/2),int((256+32)/2))
         self.pool34 = nn.MaxPool2d(2,stride=2,ceil_mode=True)
 
-        self.stage4 = RSU4(256,128,512)
+        self.stage4 = RSU4(int((256+32)/2),int((128+16)/2),int((512+64)/2))
         self.pool45 = nn.MaxPool2d(2,stride=2,ceil_mode=True)
 
-        self.stage5 = RSU4F(512,256,512)
+        self.stage5 = RSU4F(int((512+64)/2),int((256+32)/2),int((512+64)/2))
         self.pool56 = nn.MaxPool2d(2,stride=2,ceil_mode=True)
 
-        self.stage6 = RSU4F(512,256,512)
+        self.stage6 = RSU4F(int((512+64)/2),int((256+32)/2),int((512+64)/2))
 
         # decoder
-        self.stage5d = RSU4F(1024,256,512)
-        self.stage4d = RSU4(1024,128,256)
-        self.stage3d = RSU5(512,64,128)
-        self.stage2d = RSU6(256,32,64)
-        self.stage1d = RSU7(128,16,64)
+        self.stage5d = RSU4F(int((1024+128)/2),int((256+32)/2),int((512+64)/2))
+        self.stage4d = RSU4(int((1024+128)/2),int((128+16)/2),int((256+32)/2))
+        self.stage3d = RSU5(int((512+64)/2),int((64+8)/2),int((128+16)/2))
+        self.stage2d = RSU6(int((256+32)/2),int((32+4)/2),int((64+8)/2))
+        self.stage1d = RSU7(int((128+16)/2),int((16+2)/2),int((64+8)/2))
 
-        self.side1 = nn.Conv2d(64,out_ch,3,padding=1)
-        self.side2 = nn.Conv2d(64,out_ch,3,padding=1)
-        self.side3 = nn.Conv2d(128,out_ch,3,padding=1)
-        self.side4 = nn.Conv2d(256,out_ch,3,padding=1)
-        self.side5 = nn.Conv2d(512,out_ch,3,padding=1)
-        self.side6 = nn.Conv2d(512,out_ch,3,padding=1)
+        self.side1 = nn.Conv2d(int((64+8)/2),out_ch,3,padding=1)
+        self.side2 = nn.Conv2d(int((64+8)/2),out_ch,3,padding=1)
+        self.side3 = nn.Conv2d(int((128+16)/2),out_ch,3,padding=1)
+        self.side4 = nn.Conv2d(int((256+32)/2),out_ch,3,padding=1)
+        self.side5 = nn.Conv2d(int((512+64)/2),out_ch,3,padding=1)
+        self.side6 = nn.Conv2d(int((512+64)/2),out_ch,3,padding=1)
+
+        if old:
+            self.stage1 = RSU7(in_ch,int(32/2), int((64)/2))
+            self.pool12 = nn.MaxPool2d(2,stride=2,ceil_mode=True)
+
+            self.stage2 = RSU6(int((64)/2),int((32)/2),int((128)/2))
+            self.pool23 = nn.MaxPool2d(2,stride=2,ceil_mode=True)
+
+            self.stage3 = RSU5(int((128)/2),int((64)/2),int((256)/2))
+            self.pool34 = nn.MaxPool2d(2,stride=2,ceil_mode=True)
+
+            self.stage4 = RSU4(int((256)/2),int((128)/2),int((512)/2))
+            self.pool45 = nn.MaxPool2d(2,stride=2,ceil_mode=True)
+
+            self.stage5 = RSU4F(int((512)/2),int((256)/2),int((512)/2))
+            self.pool56 = nn.MaxPool2d(2,stride=2,ceil_mode=True)
+
+            self.stage6 = RSU4F(int((512)/2),int((256)/2),int((512)/2))
+
+            # decoder
+            self.stage5d = RSU4F(int((1024)/2),int((256)/2),int((512)/2))
+            self.stage4d = RSU4(int((1024)/2),int((128)/2),int((256)/2))
+            self.stage3d = RSU5(int((512)/2),int((64)/2),int((128)/2))
+            self.stage2d = RSU6(int((256)/2),int((32)/2),int((64)/2))
+            self.stage1d = RSU7(int((128)/2),int((16)/2),int((64)/2))
+
+            self.side1 = nn.Conv2d(int((64)/2),out_ch,3,padding=1)
+            self.side2 = nn.Conv2d(int((64)/2),out_ch,3,padding=1)
+            self.side3 = nn.Conv2d(int((128)/2),out_ch,3,padding=1)
+            self.side4 = nn.Conv2d(int((256)/2),out_ch,3,padding=1)
+            self.side5 = nn.Conv2d(int((512)/2),out_ch,3,padding=1)
+            self.side6 = nn.Conv2d(int((512)/2),out_ch,3,padding=1)
 
         self.outconv = nn.Conv2d(6*out_ch,out_ch,1)
 

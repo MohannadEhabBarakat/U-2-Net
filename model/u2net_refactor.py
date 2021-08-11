@@ -153,7 +153,7 @@ def U2NET_lite():
     lite = {
         # cfgs for building RSUs and sides
         # {stage : [name, (height(L), in_ch, mid_ch, out_ch, dilated), side]}
-        'stage1': ['En_1', (7, 3, 16, 64), -1],
+        'stage1': ['En_1', (7, 1, 16, 64), -1],
         'stage2': ['En_2', (6, 64, 16, 64), -1],
         'stage3': ['En_3', (5, 64, 16, 64), -1],
         'stage4': ['En_4', (4, 64, 16, 64), -1],

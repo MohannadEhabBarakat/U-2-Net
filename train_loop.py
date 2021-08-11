@@ -56,7 +56,7 @@ def train(net, epoch_num, val_ds, train_ds, save_frq,
     early_stopping = EarlyStopping(patience)
     iou = IOU()
     val_ite_num = 0
-    scheduler = ReduceLROnPlateau(optimizer, 'min', patience=20,
+    scheduler = ReduceLROnPlateau(optimizer, 'min', patience=5,
                                    threshold=1e-4, verbose=True,
                                    factor=0.25)
 
@@ -71,7 +71,7 @@ def train(net, epoch_num, val_ds, train_ds, save_frq,
         return res 
     n_prams = np.sum([size(x) for x in net.parameters()])
     print("model parameters: ", n_prams)
-    print("model mem size estimate: %4f Gb" %((n_prams/1000000000)*32))
+    # print("model mem size estimate: %4f Gb" %((n_prams/1000000000)*32))
         
     break_ = False
 
@@ -86,7 +86,7 @@ def train(net, epoch_num, val_ds, train_ds, save_frq,
 
             inputs = inputs.type(torch.FloatTensor)
             labels = labels.type(torch.FloatTensor)
-
+            # print("inputs.shape: ", inputs.shape)
             # wrap them in Variable
             if torch.cuda.is_available():
                 inputs_v, labels_v = Variable(inputs.cuda(), requires_grad=False), Variable(labels.cuda(),
@@ -111,8 +111,9 @@ def train(net, epoch_num, val_ds, train_ds, save_frq,
             running_tar_loss += loss2.data.item()
 
             
-            print("[epoch: %3d/%3d, batch: %5d/%5d, ite: %d] train loss: %3f, tar: %3f, max: %3f " % (
-            epoch + 1, epoch_num, (i + 1) * batch_size_train, train_num, ite_num, running_loss / ite_num4val, running_tar_loss / ite_num4val, d0.max().data.item()))
+            print("[epoch: %3d/%3d, batch: %5d/%5d, ite: %d] train loss: %3f, tar: %3f, max: %3f, lr: %f " % (
+            epoch + 1, epoch_num, (i + 1) * batch_size_train, train_num, ite_num, running_loss / ite_num4val,
+             running_tar_loss / ite_num4val, d0.max().data.item(), optimizer.param_groups[0]['lr']))
             
             # del temporary outputs and loss
             del d0, d1, d2, d3, d4, d5, d6, loss2, loss
@@ -127,7 +128,7 @@ def train(net, epoch_num, val_ds, train_ds, save_frq,
                     "val_iou":val_iou 
                 })
                 torch.save(net.state_dict(), "./saved_models/expeiraments/" + trail_name +"/_bce_itr_%d_train_%3f_tar_%3f_val_loss_%4f_val_iou_%4f.pth" % (ite_num, running_loss / ite_num4val, running_tar_loss / ite_num4val, val_loss, val_iou))
-                scheduler.step(running_loss/save_frq)
+                scheduler.step(val_loss)
                 wandb.log({
                     "train_iou":iou.mean(),
                     "train_loss":running_loss/save_frq,
@@ -142,7 +143,7 @@ def train(net, epoch_num, val_ds, train_ds, save_frq,
                 del iou
                 iou = IOU()
 
-                if early_stopping.eval(val_loss, epoch): 
+                if early_stopping.eval(1-val_iou, epoch): 
                     print("Early stopping:\n    best loss is %4f, on epoch %d" %(early_stopping.last_loss, early_stopping.epoch))
                     break_ = True
                     break

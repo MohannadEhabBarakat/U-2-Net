@@ -17,14 +17,15 @@ import os
 from data_loader import DatasetPipline
 
 from model import U2NET
+from model import U2NET_lite
 from model import U2NETP
 
 from train_loop import train as fit
 import wandb
-
+from dice_loss import DiceLoss
 # ------- 1. define loss function --------
 
-bce_loss = nn.BCELoss(size_average=True)
+bce_loss = DiceLoss()# nn.BCELoss(size_average=True)
 
 def muti_bce_loss_fusion(d0, d1, d2, d3, d4, d5, d6, labels_v):
 	
@@ -52,12 +53,11 @@ train_num = 0
 val_num = 0
  
 train_ = DatasetPipline(src="data", split="Train")
-train = DataLoader(train_, batch_size=12, shuffle=True, num_workers=1)
+train = DataLoader(train_, batch_size=32, shuffle=True, num_workers=1)
 
 val_ = DatasetPipline(src="data", split="Validation")
-val = DataLoader(val_, batch_size=1, shuffle=True, num_workers=1)
+val = DataLoader(val_, batch_size=16, shuffle=True, num_workers=1)
 
-wandb.init(project='u2net') 
 
 print("train size: ", train_.__len__())
 print("val size: ", val_.__len__())
@@ -66,19 +66,22 @@ print("val size: ", val_.__len__())
 if(model_name=='u2net'):
     net = U2NET(1, 1)
 elif(model_name=='u2netp'):
-    net = U2NETP(3,1)
+    net = U2NETP(1,1)
+elif(model_name=='u2net_lite_refactor'):
+	net = U2NET_lite()
+
 
 # if torch.cuda.is_available():
 #     net.cuda()
 
 # ------- 4. define optimizer --------
 print("---define optimizer...")
-optimizer = optim.Adam(net.parameters(), lr=0.000001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
+optimizer = optim.Adam(net.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
 
 # ------- 5. training process --------
 print("---start training...")
 ite_num = 0
-patience = 50
+patience = 20
 ite_num4val = 0
 save_frq = 500 # save the model every 2000 iterations
 
@@ -96,7 +99,12 @@ if expeirament_name.strip() == "":
 
 print("** expeirament id is "+expeirament_name+" **")
 
-fit(net, epoch_num, train, val, save_frq,
-         muti_bce_loss_fusion, ite_num, optimizer,
-         ite_num4val, batch_size_train, train_num, 
+
+wandb.init(project='u2net', tags=[expeirament_name, model_name]) 
+
+
+fit(net=net, epoch_num=epoch_num, val_ds=val, train_ds=train, save_frq=save_frq,
+         muti_bce_loss_fusion=muti_bce_loss_fusion, ite_num=ite_num, optimizer=optimizer,
+         ite_num4val=ite_num4val, batch_size_train=batch_size_train, train_num=train_num, 
 		 trail_name=expeirament_name, patience=patience)
+

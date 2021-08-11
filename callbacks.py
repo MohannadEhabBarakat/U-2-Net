@@ -41,7 +41,9 @@ class IOU():
     def mean(self): return self.result / self.n_calls
 
     def mean_iou(self, y_true, y_pred):
-        y_pred = torch.round(y_pred)
+        y_pred = (y_pred>0.5).float()
+        y_true = (y_true>0.5).float()
+        
         intersect = torch.sum(y_true * y_pred, dim=[1, 2, 3])
         union = torch.sum(y_true, dim=[1, 2, 3]) + torch.sum(y_pred, dim=[1, 2, 3])
         smooth = torch.ones_like(intersect)*1e-5
@@ -49,7 +51,7 @@ class IOU():
         result = torch.mean((intersect + smooth) / (union - intersect + smooth))
 
         del y_pred, intersect, union, smooth
-        # print("result: ", result)
+
         return result
 
 if __name__=='__main__':
